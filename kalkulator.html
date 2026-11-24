@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kalkulator JavaScript</title>
+<link rel="stylesheet" href="kalkulator.css">
+</head>
+<body>
+  <div class="calculator" role="region" aria-label="Kalkulator">
+    <div class="display">
+      <div class="history" id="history" aria-live="polite"></div>
+      <input id="screen" class="screen" value="0" inputmode="decimal" aria-label="Layar kalkulator" readonly>
+    </div>
+    <div class="keys">
+      <button class="danger" data-action="clear" title="Bersihkan (Esc)">AC</button>
+      <button class="danger" data-action="delete" title="Hapus satu (Backspace)">DEL</button>
+      <button class="op" data-op="^" title="Pangkat (^)" aria-label="Pangkat">^</button>
+      <button class="op" data-op="/" title="Bagi (/)" aria-label="Bagi">÷</button>
+
+      <button data-digit="7">7</button>
+      <button data-digit="8">8</button>
+      <button data-digit="9">9</button>
+      <button class="op" data-op="*" aria-label="Kali">×</button>
+
+      <button data-digit="4">4</button>
+      <button data-digit="5">5</button>
+      <button data-digit="6">6</button>
+      <button class="op" data-op="-" aria-label="Kurang">-</button>
+
+      <button data-digit="1">1</button>
+      <button data-digit="2">2</button>
+      <button data-digit="3">3</button>
+      <button class="op" data-op="+" aria-label="Tambah">+</button>
+
+      <button data-action="sqrt" title="Akar (√)">√</button>
+      <button data-digit="0">0</button>
+      <button data-action="dot">.</button>
+      <button class="accent" data-action="equals" title="Sama dengan (=)">=</button>
+    </div>
+  </div>
+
+<script>
+(function() {
+  "use strict";
+
+  const screen = document.getElementById("screen");
+  const historyEl = document.getElementById("history");
+  const keys = document.querySelector(".keys");
+
+  let currentValue = "0";       // angka yang sedang diketik
+  let storedValue = null;        // angka sebelumnya
+  let pendingOperator = null;    // operator yang menunggu
+  let justEvaluated = false;     // flag setelah '='
+
+  function formatNumber(n) {
+    if (!isFinite(n)) return "Error";
+    const s = n.toString();
+    if (s.includes("e")) return n.toString();
+    return (Math.round((n + Number.EPSILON) * 1e12) / 1e12).toString();
+  }
+
+  function updateDisplay() {
+    screen.value = currentValue;
+    const hist = [];
+    if (storedValue !== null) hist.push(storedValue);
+    if (pendingOperator) hist.push(pendingOperator);
+    historyEl.textContent = hist.join(" ");
+  }
+
+  function inputDigit(d) {
+    if (justEvaluated) {
+      currentValue = d;
+      justEvaluated = false;
+    } else if (currentValue === "0") {
+      currentValue = d;
+    } else {
+      currentValue += d;
+    }
+    updateDisplay();
+  }
+
+  function inputDot() {
+    if (justEvaluated) {
+      currentValue = "0.";
+      justEvaluated = false;
+    } else if (!currentValue.includes(".")) {
+      currentValue += ".";
+    }
+    updateDisplay();
+  }
+
+  function clearAll() {
+    currentValue = "0";
+    storedValue = null;
+    pendingOperator = null;
+    justEvaluated = false;
+    updateDisplay();
+  }
+
+  function deleteLast() {
+    if (justEvaluated) {
+      clearAll();
+      return;
+    }
+    if (currentValue.length <= 1) {
+      currentValue = "0";
+    } else {
+      currentValue = currentValue.slice(0, -1);
+    }
+    updateDisplay();
+  }
+
+  function chooseOperator(op) {
+    if (pendingOperator && !justEvaluated) {
+      compute();
+    } else {
+      storedValue = parseFloat(currentValue);
+    }
+    pendingOperator = op;
+    justEvaluated = false;
+    currentValue = "0";
+    updateDisplay();
+  }
+
+  function compute() {
+    if (pendingOperator === null || storedValue === null) return;
+    const a = storedValue;
+    const b = parseFloat(currentValue);
+    let result;
+    switch (pendingOperator) {
+      case "+": result = a + b; break;
+      case "-": result = a - b; break;
+      case "*": result = a * b; break;
+      case "/": result = b === 0 ? Infinity : a / b; break;
+      case "^": result = Math.pow(a, b); break;
+      default: return;
+    }
+    const formatted = formatNumber(result);
+    currentValue = formatted;
+    storedValue = null;
+    pendingOperator = null;
+    justEvaluated = true;
+    updateDisplay();
+  }
+
+  function sqrtCurrent() {
+    const n = parseFloat(currentValue);
+    if (n < 0) {
+      currentValue = "Error";
+      storedValue = null;
+      pendingOperator = null;
+      justEvaluated = true;
+    } else {
+      const r = Math.sqrt(n);
+      currentValue = formatNumber(r);
+      justEvaluated = true;
+    }
+    updateDisplay();
+  }
+
+  keys.addEventListener("click", (e) => {
+    const btn = e.target.closest("button");
+    if (!btn) return;
+
+    const digit = btn.getAttribute("data-digit");
+    const op = btn.getAttribute("data-op");
+    const action = btn.getAttribute("data-action");
+
+    if (digit !== null) {
+      inputDigit(digit);
+      return;
+    }
+    if (op !== null) {
+      chooseOperator(op);
+      return;
+    }
+    if (action === "dot") { inputDot(); return; }
+    if (action === "clear") { clearAll(); return; }
+    if (action === "delete") { deleteLast(); return; }
+    if (action === "equals") { compute(); return; }
+    if (action === "sqrt") { sqrtCurrent(); return; }
+  });
+
+  window.addEventListener("keydown", (e) => {
+    if ((e.key >= "0" && e.key <= "9")) {
+      inputDigit(e.key);
+    } else if (e.key === ".") {
+      inputDot();
+    } else if (e.key === "+" || e.key === "-" || e.key === "*" || e.key === "/" || e.key === "^") {
+      chooseOperator(e.key);
+    } else if (e.key === "Enter" || e.key === "=") {
+      e.preventDefault();
+      compute();
+    } else if (e.key === "Backspace") {
+      deleteLast();
+    } else if (e.key === "Escape") {
+      clearAll();
+    } else if (e.key.toLowerCase() === "r") { // sqrt shortcut: R
+      sqrtCurrent();
+    }
+  });
+
+  updateDisplay();
+})();
+</script>
+</body>
+</html> 
